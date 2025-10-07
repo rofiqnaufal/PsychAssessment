@@ -11,140 +11,22 @@ from google.oauth2.service_account import Credentials
 st.set_page_config(page_title="FOOTPSY Assessment", layout="wide")
 
 primary_green = "#4CAF50"
-st.markdown(f"""
-<style>
-/* Force dark mode on all devices */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+# Force dark theme in Streamlit config
+st.set_page_config(
+    page_title="FOOTPSY Assessment",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-* {{
-    font-family: 'Inter', sans-serif;
-}}
-
-/* Main container dark theme */
-.main {{
-    background-color: #111111;
-    color: #FFFFFF;
-}}
-
-/* Target mobile-specific Streamlit classes */
-section[data-testid="stSidebar"],
-div[data-testid="stSidebar"] {{
-    background-color: #111111 !important;
-}}
-
-/* Header and text elements */
-.stMarkdown, .stTitle, .stHeader, .stSubheader {{
-    color: #FFFFFF !important;
-}}
-
-/* Form elements */
-.stRadio > div {{
-    background-color: #1E1E1E !important;
-}}
-
-.stRadio label {{
-    color: #FFFFFF !important;
-}}
-
-/* Buttons */
-.stButton>button {{
-    background-color: {primary_green} !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 6px !important;
-    padding: 8px 16px !important;
-    font-weight: 500 !important;
-}}
-
-.stButton>button:hover {{
-    background-color: #66BB6A !important;
-    color: white !important;
-}}
-
-/* Text inputs */
-.stTextInput input {{
-    background-color: #1E1E1E !important;
-    color: #FFFFFF !important;
-    border: 1px solid #333 !important;
-}}
-
-.stTextInput label {{
-    color: #FFFFFF !important;
-}}
-
-/* Date input */
-.stDateInput input {{
-    background-color: #1E1E1E !important;
-    color: #FFFFFF !important;
-    border: 1px solid #333 !important;
-}}
-
-.stDateInput label {{
-    color: #FFFFFF !important;
-}}
-
-/* Disabled inputs */
-.stTextInput input:disabled {{
-    background-color: #2A2A2A !important;
-    color: #888 !important;
-}}
-
-/* Radio buttons - ensure text is visible */
-div[role="radiogroup"] label {{
-    color: white !important;
-    background-color: #1E1E1E !important;
-}}
-
-/* Mobile-specific media query */
-@media (max-width: 768px) {{
-    .main {{
-        background-color: #111111 !important;
-    }}
-
-    div[data-testid="stVerticalBlock"] {{
-        background-color: #111111 !important;
-    }}
-
-    section.main {{
-        background-color: #111111 !important;
-    }}
-
-    /* Ensure all text is visible on mobile */
-    .stMarkdown, .stTitle, .stHeader, .stSubheader {{
-        color: #FFFFFF !important;
-    }}
-}}
-
-/* Warning text */
-div[data-testid="stMarkdownContainer"] p {{
-    color: #FFFFFF !important;
-}}
-
-/* Make sure the warning red is visible */
-div[style*="color:red"] {{
-    color: #FF6B6B !important;
-}}
-
-/* Caption text */
-.stCaption {{
-    color: #CCCCCC !important;
-}}
-
-/* Metric cards */
-.stMetric {{
-    background-color: #1E1E1E !important;
-    color: #FFFFFF !important;
-    border: 1px solid #333 !important;
-    border-radius: 8px !important;
-}}
-
-/* Success/error messages */
-.stAlert {{
-    background-color: #1E1E1E !important;
-    color: #FFFFFF !important;
-}}
-</style>
-""", unsafe_allow_html=True)
+# Additional theme forcing
+try:
+    st._config.set_option('theme.base', 'dark')
+    st._config.set_option('theme.primaryColor', primary_green)
+    st._config.set_option('theme.backgroundColor', '#111111')
+    st._config.set_option('theme.secondaryBackgroundColor', '#1E1E1E')
+    st._config.set_option('theme.textColor', '#FFFFFF')
+except:
+    pass
 
 # ======= GOOGLE SHEETS HELPER =======
 def log_to_gsheet(player_info, domain_scores, validity_scores):
