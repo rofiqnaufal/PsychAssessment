@@ -4,3 +4,7 @@ numpy
 reportlab
 matplotlib
 Pillow
+gspread
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
