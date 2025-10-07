@@ -226,14 +226,28 @@ questions = {
 # ======= SESSION STATE =======
 if 'page' not in st.session_state: st.session_state.page = 1
 if 'qpage' not in st.session_state: st.session_state.qpage = 1
+if 'admin_authenticated' not in st.session_state: st.session_state.admin_authenticated = False
 
 # ======= PAGE 1: ATHLETE INFO =======
 if st.session_state.page == 1:
     st.title("🏆 FOOTPSY — Football Psychological Assessment")
-    # Add admin access button at the top
-    if st.sidebar.button("🔧 Admin Access"):
-        st.session_state.page = 9
-        st.rerun()
+
+    # Add SECURE admin access button
+    with st.sidebar:
+        st.markdown("---")
+        st.subheader("Admin Access")
+
+        # Password protection
+        admin_password_input = st.text_input("Admin Password", type="password", placeholder="Enter admin password")
+
+        if st.button("🔧 Admin Login"):
+            # Use password from secrets.toml
+            if admin_password_input == st.secrets.get("admin_password", "default_fallback_password"):
+                st.session_state.admin_authenticated = True
+                st.session_state.page = 9
+                st.rerun()
+            elif admin_password_input:  # Only show error if they actually entered something
+                st.error("❌ Incorrect admin password")
 
     logo_path = os.path.join(BASE, "assets", "footpsylogo.png")
     if os.path.exists(logo_path):
@@ -516,10 +530,25 @@ if st.session_state.page == 8:
         mime="application/pdf"
     )
 
-# ======= PAGE 9: ADMIN PANEL (Add this after PAGE 8) =======
+# ======= PAGE 9: ADMIN PANEL =======
 if st.session_state.page == 9:
+    # Check if user is authenticated
+    if not st.session_state.get('admin_authenticated', False):
+        st.error("🔒 Unauthorized access. Please login through the admin panel.")
+        if st.button("← Back to Main"):
+            st.session_state.page = 1
+            st.rerun()
+        st.stop()  # Stop execution here
+
     st.title("🔧 Admin Panel - View All Reports")
 
+    # Add logout button
+    if st.sidebar.button("🚪 Logout"):
+        st.session_state.admin_authenticated = False
+        st.session_state.page = 1
+        st.rerun()
+
+    # Rest of your admin panel code remains the same...
     try:
         SCOPES = [
             "https://www.googleapis.com/auth/spreadsheets",
