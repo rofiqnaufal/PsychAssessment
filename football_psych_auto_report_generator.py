@@ -146,28 +146,6 @@ div[style*="color:red"] {{
 </style>
 """, unsafe_allow_html=True)
 
-# Force dark theme (add this right after your CSS)
-st.markdown(
-    """
-    <script>
-    // Force dark mode
-    document.addEventListener('DOMContentLoaded', function() {
-        const html = document.querySelector('html');
-        if (html) {
-            html.setAttribute('data-theme', 'dark');
-        }
-
-        // Also set meta theme color for mobile browsers
-        const meta = document.createElement('meta');
-        meta.name = 'theme-color';
-        meta.content = '#111111';
-        document.getElementsByTagName('head')[0].appendChild(meta);
-    });
-    </script>
-    """,
-    unsafe_allow_html=True
-)
-
 # ======= GOOGLE SHEETS HELPER =======
 def log_to_gsheet(player_info, domain_scores, validity_scores):
     """Append one assessment result to Google Sheets with proper column order"""
