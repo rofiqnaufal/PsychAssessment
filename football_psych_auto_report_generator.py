@@ -1,10 +1,11 @@
 import streamlit as st
-import pandas as pd, numpy as np, os, datetime, random, string
+import pandas as pd, os, datetime, random, string
 from io import BytesIO
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from scoring import compute_domain_means, compute_im_score, inconsistency_index, max_longstring, adjust_for_im
 
+# ======= PAGE CONFIG & STYLING =======
 st.set_page_config(page_title="FOOTPSY Assessment", layout="wide")
 
 primary_green = "#4CAF50"
@@ -12,11 +13,13 @@ st.markdown(f"""
 <style>
 .reportview-container {{background-color: #111111;}}
 .main {{color: #FFFFFF;}}
-.stButton>button {{background-color: {primary_green}; color: white;}}
+.stButton>button {{background-color: {primary_green}; color: white; border:none; border-radius:6px; padding:8px 16px;}}
+.stButton>button:hover {{background-color: #66BB6A;}}
 .stMarkdown {{color: #FFFFFF}}
 </style>
 """, unsafe_allow_html=True)
 
+# ======= SETUP =======
 BASE = os.path.dirname(__file__)
 mapping = pd.read_csv(os.path.join(BASE, "assets", "scales_mapping.csv"))
 map_dict = {}
@@ -25,11 +28,9 @@ for _, r in mapping.iterrows():
 
 reverse_items = [2,6,7,10,14,16,20,21,22,26,31,36,38,42,45,50,54,59,13,43]
 im_items = map_dict.get("Impression Management", [])
-attention_items = map_dict.get("Attention Checks", [])
 inconsistency_pairs = [(1,42),(2,47),(15,22),(16,18)]
 
-questions = {}
-# create a sample questions dict
+# --- Sample Questions ---
 questions = {
 1:"I can stay calm when my team concedes a goal late in the game.",
 2:"I sometimes lose focus when training becomes repetitive.",
@@ -87,160 +88,173 @@ questions = {
 54:"I get angry when referees make unfair decisions.",
 55:"I ask my coaches for feedback on how I can improve.",
 56:"I’m able to laugh at myself after a bad performance.",
-57:'Please select \"Agree\" for this item.',
+57:'Please select "Agree" for this item.',
 58:"I like to give orders and take charge when needed.",
 59:"I feel anxious before important matches.",
 60:"I show total commitment to developing as a footballer."
 }
 
-# === Session State Management ===
-if 'page' not in st.session_state:
-    st.session_state.page = 1
-if 'qpage' not in st.session_state:
-    st.session_state.qpage = 1
+# ======= SESSION STATE =======
+if 'page' not in st.session_state: st.session_state.page = 1
+if 'qpage' not in st.session_state: st.session_state.qpage = 1
 
-def next_page():
-    st.session_state.qpage += 1
-
-def prev_page():
-    if st.session_state.qpage > 1:
-        st.session_state.qpage -= 1
-
-
-# PAGE 1
+# ======= PAGE 1: ATHLETE INFO =======
 if st.session_state.page == 1:
     st.title("🏆 FOOTPSY — Football Psychological Assessment")
+
     logo_path = os.path.join(BASE, "assets", "footpsylogo.png")
     if os.path.exists(logo_path):
         st.image(logo_path, width=180)
     st.subheader("Athlete Information")
 
-
     def sticky_warning(text):
         st.markdown(f"<div style='color:red; font-size:0.9em; position:sticky;'>{text}</div>", unsafe_allow_html=True)
 
+    # === Row 1: Player Name + Player ID ===
+    col1, col2 = st.columns(2)
+    with col1:
+        st.session_state.player_name = st.text_input("Player Name", st.session_state.get("player_name", ""))
+        if not st.session_state.player_name:
+            sticky_warning("⚠️ Please fill this field, put N/A if unsure.")
 
-    # === Player Name ===
-    player_name = st.text_input("Player Name", key="player_name")
-    if not player_name:
-        sticky_warning("⚠️ Please fill this field, put N/A if unsure.")
+    with col2:
+        def generate_player_id():
+            rand = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            now = datetime.datetime.now()
+            return f"FPY-{now.month:02d}-{now.year}-{rand}"
 
+        st.session_state.player_id = st.text_input("Player ID", st.session_state.get("player_id", ""), placeholder="Auto-generated if left blank")
+        st.markdown("<span style='color:gray; font-size:0.8em;'>Leave blank if unsure — ID will be generated automatically.</span>", unsafe_allow_html=True)
+        if not st.session_state.player_id:
+            st.session_state.player_id = generate_player_id()
 
-    # === Player ID (auto-generate if blank) ===
-    def generate_player_id():
-        rand = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        now = datetime.datetime.now()
-        return f"FPY-{now.month:02d}-{now.year}-{rand}"
+    # === Row 2: Team Name + Position ===
+    col3, col4 = st.columns(2)
+    with col3:
+        st.session_state.team_name = st.text_input("Team Name", st.session_state.get("team_name", ""))
+        if not st.session_state.team_name:
+            sticky_warning("⚠️ Please fill this field, put N/A if unsure.")
 
+    with col4:
+        st.session_state.player_position = st.text_input("Position", st.session_state.get("player_position", ""))
+        if not st.session_state.player_position:
+            sticky_warning("⚠️ Please fill this field, put N/A if unsure.")
 
-    player_id = st.text_input("Player ID", key="player_id", placeholder="Auto-generated if left blank")
-    st.markdown(
-        "<span style='color:gray; font-size:0.8em;'>Leave blank if unsure — ID will be generated automatically.</span>",
-        unsafe_allow_html=True)
-    if not player_id:
-        player_id = generate_player_id()
-
-    # === Team ===
-    team_name = st.text_input("Team Name", key="team_name")
-    if not team_name:
-        sticky_warning("⚠️ Please fill this field, put N/A if unsure.")
-
-    # === Position ===
-    player_position = st.text_input("Position", key="player_position")
-    if not player_position:
-        sticky_warning("⚠️ Please fill this field, put N/A if unsure.")
-
-    # === DOB ===
-    today = datetime.date.today()
-    dob = st.date_input("Date of Birth (DD/MM/YYYY)", key="dob", format="DD/MM/YYYY",
-                        min_value=datetime.date(1970, 1, 1), max_value=today)
-
-    if not dob:
-        sticky_warning("⚠️ Please select your date of birth.")
-        player_age = ""
-    else:
+    # === Row 3: DOB + Auto Age ===
+    col5, col6 = st.columns(2)
+    with col5:
+        today = datetime.date.today()
+        st.session_state.dob = st.date_input("Date of Birth (DD/MM/YYYY)", value=st.session_state.get("dob", today),
+                                             format="DD/MM/YYYY", min_value=datetime.date(1970, 1, 1), max_value=today)
+    with col6:
+        dob = st.session_state.dob
         player_age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+        st.session_state.player_age = player_age
+        st.text_input("Age", value=str(player_age), disabled=True)
 
-    # === Age auto-calculated ===
-    player_age_display = st.text_input("Age", value=str(player_age), disabled=True)
-
+    # === Navigation ===
     all_filled = all([
-        player_name.strip(),
-        team_name.strip(),
-        player_position.strip(),
-        dob is not None
+        st.session_state.player_name.strip(),
+        st.session_state.team_name.strip(),
+        st.session_state.player_position.strip(),
+        st.session_state.dob is not None
     ])
 
     start_disabled = not all_filled
-    if st.button("Start the assessment", disabled=start_disabled, on_click=next_page):
-        pass
+    if st.button("Start the assessment", disabled=start_disabled):
+        st.session_state.page = 2
+        st.session_state.qpage = 1
+        st.rerun()
+
     if start_disabled:
         st.caption("Please fill all required fields before starting the assessment")
 
-# PAGES 2..7: questionnaire
-if st.session_state.page >=2 and st.session_state.page <=7:
+
+# ======= PAGES 2–7: QUESTIONS =======
+if st.session_state.page >= 2 and st.session_state.page <= 7:
     st.title("⚽ FOOTPSY — Assessment")
-    st.markdown("**Purpose:** This assessment measures key mental attributes such as drive, focus, resilience, and adaptability.\n\n**Instructions:** Read each statement and click the box that best describes how true it is for you.\n\nScale: 1=Strongly Disagree, 2=Disagree, 3=Neutral, 4=Agree, 5=Strongly Agree")
+    st.markdown(
+        "**Purpose:** Measures key psychological skills such as drive, resilience, focus, and adaptability.\n\n"
+        "**Instructions:** Read each statement and select how true it is for you (1–5)."
+    )
 
-    questions_per_page = 10
-    total_questions = len(questions)
-    total_qpages = (total_questions + questions_per_page - 1) // questions_per_page
+    q_per_page = 10
+    total_q = len(questions)
+    total_qpages = (total_q + q_per_page - 1) // q_per_page
     qpage = st.session_state.qpage
-    start_q = (qpage - 1) * questions_per_page + 1
-    end_q = min(start_q + questions_per_page - 1, total_questions)
+    start_q, end_q = (qpage - 1) * q_per_page + 1, min(qpage * q_per_page, total_q)
 
-    st.subheader(f"Questions {start_q} – {end_q}  (Page {qpage} of {total_qpages})")
+    st.subheader(f"Questions {start_q}–{end_q}  (Page {qpage}/{total_qpages})")
 
-    # header row
-    cols = st.columns([3,1,1,1,1,1,1])
-    cols[0].markdown("**Item**")
-    cols[1].markdown("**1**")
-    cols[2].markdown("**2**")
-    cols[3].markdown("**3**")
-    cols[4].markdown("**4**")
-    cols[5].markdown("**5**")
+    for i in range(start_q, end_q + 1):
+        if f"q{i}" not in st.session_state: st.session_state[f"q{i}"] = 0
 
-    # ensure responses exist
-    for i in range(1, total_questions+1):
-        if f"q{i}" not in st.session_state:
-            st.session_state[f"q{i}"] = 0
+    with st.form(key=f"form_page_{qpage}"):
+        st.markdown("### Answer the following questions:")
 
-    # display questions
-    for i in range(start_q, end_q+1):
-        row_cols = st.columns([3,1,1,1,1,1,1])
-        row_cols[0].write(f"{i}. {questions[i]}")
-        for opt in range(1,6):
-            label = "●" if st.session_state.get(f"q{i}") == opt else "○"
-            key = f"btn_{i}_{opt}"
-            if row_cols[opt].button(label, key=key):
-                st.session_state[f"q{i}"] = opt
+        response_labels = [
+            "Strongly Disagree",
+            "Disagree",
+            "Neutral",
+            "Agree",
+            "Strongly Agree"
+        ]
 
-        # === Navigation Buttons with Validation ===
-        # Determine which questions are on this page
-        current_items = range(start_q, end_q + 1)
-        answered = all(st.session_state.get(f"q{i}") != 0 for i in current_items)
+        for i in range(start_q, end_q + 1):
+            existing = st.session_state.get(f"q{i}", 0)
+            default_idx = (existing - 1) if existing in [1, 2, 3, 4, 5] else 2
 
-        nav_cols = st.columns([1, 5, 1])
-
-        with nav_cols[0]:
-            if st.button("⬅ Back", disabled=(st.session_state.qpage == 1)):
-                st.session_state.qpage -= 1
-
-        with nav_cols[2]:
-            if st.session_state.qpage < total_qpages:
-                if st.button("Next ➡", disabled=not answered):
-                    st.session_state.qpage += 1
-            else:
-                if st.button("Submit and Generate Report", disabled=not answered):
-                    st.session_state.page = 8
-
-        if not answered:
-            st.markdown(
-                "<div style='color:red; font-size:0.9em;'>⚠️ Please answer all questions on this page before proceeding.</div>",
-                unsafe_allow_html=True
+            st.markdown(f"**{i}. {questions[i]}**")
+            st.radio(
+                "Your answer:",
+                options=response_labels,
+                key=f"form_q{i}",
+                index=default_idx,
+                horizontal=True,
+                label_visibility="collapsed"
             )
+            st.markdown("---")  # visual divider between questions
 
-# PAGE 8 results
+        submitted = st.form_submit_button("💾 Save & Next")
+
+    back_col, spacer, next_col = st.columns([1,6,1])
+    with back_col:
+        if st.button("⬅ Back"):
+            if st.session_state.qpage > 1:
+                st.session_state.qpage -= 1
+            else:
+                st.session_state.page = 1
+            st.rerun()
+
+    if submitted:
+        incomplete = False
+        label_to_num = {
+            "Strongly Disagree": 1,
+            "Disagree": 2,
+            "Neutral": 3,
+            "Agree": 4,
+            "Strongly Agree": 5
+        }
+
+        for i in range(start_q, end_q + 1):
+            val = st.session_state.get(f"form_q{i}", None)
+            if val is None:
+                incomplete = True
+                break
+
+        if incomplete:
+            st.warning("⚠️ Please answer all questions on this page before continuing.")
+        else:
+            for i in range(start_q, end_q + 1):
+                label = st.session_state.get(f"form_q{i}")
+                st.session_state[f"q{i}"] = label_to_num.get(label, 0)
+            if qpage < total_qpages:
+                st.session_state.qpage += 1
+            else:
+                st.session_state.page = 8
+            st.rerun()
+
+# ======= PAGE 8: RESULTS =======
 if st.session_state.page == 8:
     st.title("📊 Results & Report")
     responses = {i: st.session_state.get(f"q{i}", 0) for i in range(1,61)}
@@ -260,47 +274,75 @@ if st.session_state.page == 8:
     st.markdown("**Validity & Quality**")
     st.write(f"IM sum: {im_sum} ; Inconsistency index: {inconsistency} ; Longstring: {long_run} ; Attention pass: {att_pass}")
 
-    if st.button("Download PDF Report"):
-        buffer = BytesIO()
-        c = canvas.Canvas(buffer, pagesize=A4)
-        width, height = A4
-        logo_path = os.path.join(BASE, "assets", "footpsylogo.png")
-        if os.path.exists(logo_path):
-            c.drawImage(logo_path, 40, height-110, width=120, preserveAspectRatio=True)
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(180, height-60, f"FOOTPSY — Individual Report")
-        c.setFont("Helvetica", 10)
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        c.drawString(40, height - 120, f"Date: {now}")
-        player_name = st.session_state.get("player_name","N/A")
-        player_id = st.session_state.get("player_id", "N/A")
-        team_name = st.session_state.get("team_name", "N/A")
-        player_position = st.session_state.get("player_position","N/A")
-        dob = st.session_state.get("dob", None)
-        player_age = st.session_state.get("player_age_display","N/A")
-        c.drawString(40, height - 135, f"Player: {player_name}  |  ID: {player_id}")
-        c.drawString(40, height - 150, f"Team: {team_name}  |  Position: {player_position}")
-        c.drawString(40, height - 165, f"Date of Birth: {dob.strftime('%d/%m/%Y') if dob else 'N/A'}  |  Age: {player_age if player_age else 'N/A'} years")
-        y = height - 195
-        for k in ['Drive & Commitment','Competitive Edge','Resilience Under Pressure','Learning & Adaptability','Focus & Game Intelligence','Team Orientation & Coachability','Emotional Regulation']:
-            val = adjusted.get(k, None)
-            c.drawString(40, y, f"{k}: {val if val is not None else 'N/A'}")
-            y -= 14
-        y -= 8
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(40, y, "Validity & Quality Checks")
+    # === Generate and Download PDF Report ===
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+    logo_path = os.path.join(BASE, "assets", "footpsylogo.png")
+    if os.path.exists(logo_path):
+        c.drawImage(logo_path, 40, height - 110, width=120, preserveAspectRatio=True)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(180, height - 60, f"FOOTPSY — Individual Report")
+    c.setFont("Helvetica", 10)
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    c.drawString(40, height - 120, f"Date: {now}")
+
+    player_name = st.session_state.get("player_name", "N/A")
+    player_id = st.session_state.get("player_id", "N/A")
+    team_name = st.session_state.get("team_name", "N/A")
+    player_position = st.session_state.get("player_position", "N/A")
+    dob = st.session_state.get("dob", None)
+    player_age = (datetime.date.today().year - dob.year) if dob else "N/A"
+
+    c.drawString(40, height - 135, f"Player: {player_name}  |  ID: {player_id}")
+    c.drawString(40, height - 150, f"Team: {team_name}  |  Position: {player_position}")
+    c.drawString(40, height - 165, f"Date of Birth: {dob.strftime('%d/%m/%Y') if dob else 'N/A'}  |  Age: {player_age}")
+    y = height - 195
+    for k in perf_scales:
+        c.drawString(40, y, f"{k}: {adjusted[k]:.2f}")
         y -= 14
-        c.setFont("Helvetica", 10)
-        c.drawString(40, y, f"IM sum: {im_sum} ; Inconsistency index: {inconsistency} ; Longstring: {long_run} ; Attention pass: {att_pass}")
-        y -= 24
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(40, y, "Actionable Recommendations")
-        y -= 14
-        recos = ["Introduce breathing and visualization routines to improve focus.","Use pressure-simulation drills to improve resilience.","Set progressive measurable goals to leverage drive and commitment.","Include short reset routines after mistakes."]
-        c.setFont("Helvetica", 10)
-        for r in recos:
-            c.drawString(40, y, f"• {r}")
-            y -= 12
-        c.save()
-        buffer.seek(0)
-        st.download_button("Download PDF", buffer, file_name="FOOTPSY_report.pdf", mime="application/pdf")
+    y -= 8
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(40, y, "Validity & Quality Checks")
+    y -= 14
+    c.setFont("Helvetica", 10)
+    c.drawString(40, y,
+                 f"IM sum: {im_sum} ; Inconsistency index: {inconsistency} ; Longstring: {long_run} ; Attention pass: {att_pass}")
+    y -= 24
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(40, y, "Actionable Recommendations")
+    y -= 14
+    recos = [
+        "Introduce breathing and visualization routines to improve focus.",
+        "Use pressure-simulation drills to improve resilience.",
+        "Set progressive measurable goals to leverage drive and commitment.",
+        "Include short reset routines after mistakes."
+    ]
+    c.setFont("Helvetica", 10)
+    for r in recos:
+        c.drawString(40, y, f"• {r}")
+        y -= 12
+    c.save()
+    buffer.seek(0)
+
+    
+    # === Do another test button (appears only on final page, before download button) ===
+    restart = st.button("🏠 Do another test")
+
+    if restart:
+        # Clear everything and immediately rerun BEFORE re-rendering download button
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.session_state.page = 1
+        st.session_state.qpage = 1
+        st.rerun()
+
+    # === Single visible download button ===
+    st.download_button(
+        label="📄 Download PDF Report",
+        data=buffer,
+        file_name=f"FOOTPSY_Report_{player_name}.pdf",
+        mime="application/pdf"
+    )
+
+
