@@ -4,6 +4,8 @@ from io import BytesIO
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from scoring import compute_domain_means, compute_im_score, inconsistency_index, max_longstring, adjust_for_im
+import gspread
+from google.oauth2.service_account import Credentials
 
 # ======= PAGE CONFIG & STYLING =======
 st.set_page_config(page_title="FOOTPSY Assessment", layout="wide")
@@ -18,6 +20,67 @@ st.markdown(f"""
 .stMarkdown {{color: #FFFFFF}}
 </style>
 """, unsafe_allow_html=True)
+
+# ======= GOOGLE SHEETS HELPER =======
+def log_to_gsheet(player_info, domain_scores, validity_scores):
+    """Append one assessment result to Google Sheets with proper column order"""
+    try:
+        # Define Google API scopes
+        SCOPES = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        creds = Credentials.from_service_account_info(
+            st.secrets["google_service_account"],
+            scopes=SCOPES
+        )
+        client = gspread.authorize(creds)
+
+        # Open your Google Sheet
+        sheet = client.open("Footpsy - Football Psychological Assessment Database").sheet1
+
+        # --- Column order as per your Google Sheet ---
+        ordered_domains = [
+            "Drive & Commitment",
+            "Competitive Edge",
+            "Resilience Under Pressure",
+            "Learning & Adaptability",
+            "Focus & Game Intelligence",
+            "Team Orientation & Coachability",
+            "Emotional Regulation"
+        ]
+
+        # --- Build the row in the same order as your sheet header ---
+        row = [
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            player_info.get("name", "N/A"),
+            player_info.get("id", "N/A"),
+            player_info.get("team", "N/A"),
+            player_info.get("position", "N/A"),
+            player_info.get("dob", "N/A"),
+            player_info.get("age", "N/A"),
+        ]
+
+        # Add domain scores in the correct order
+        for domain in ordered_domains:
+            val = domain_scores.get(domain, "")
+            row.append(round(val, 2) if isinstance(val, (int, float)) else "")
+
+        # Add validity & quality checks
+        row.extend([
+            validity_scores.get("IM", ""),
+            validity_scores.get("Inconsistency", ""),
+            validity_scores.get("Longstring", ""),
+            validity_scores.get("AttentionPass", "")
+        ])
+
+        # Append the row
+        sheet.append_row(row)
+        st.session_state["log_status"] = "success"
+
+    except Exception as e:
+        st.session_state["log_status"] = f"failed: {e}"
+
 
 # ======= SETUP =======
 BASE = os.path.dirname(__file__)
@@ -259,11 +322,11 @@ if st.session_state.page == 8:
     st.title("📊 Results & Report")
     responses = {i: st.session_state.get(f"q{i}", 0) for i in range(1,61)}
     domain_means = compute_domain_means(responses, map_dict, reverse_items)
-    im_sum = compute_im_score(responses, im_items, reverse_items)
+    im_avg = compute_im_score(responses, im_items, reverse_items) / len(im_items)
     inconsistency = inconsistency_index(responses, inconsistency_pairs)
     long_run = max_longstring(responses)
     att_pass = (responses.get(8)==4) and (responses.get(57)==4)
-    adjusted = adjust_for_im(domain_means, im_sum, len(im_items))
+    adjusted = adjust_for_im(domain_means, im_avg, len(im_items))
 
     st.subheader("Results Summary")
     perf_scales = [s for s in adjusted.keys() if s not in ['Impression Management','Attention Checks']]
@@ -272,7 +335,27 @@ if st.session_state.page == 8:
         cols[i%2].metric(k, f"{adjusted[k]:.2f}")
 
     st.markdown("**Validity & Quality**")
-    st.write(f"IM sum: {im_sum} ; Inconsistency index: {inconsistency} ; Longstring: {long_run} ; Attention pass: {att_pass}")
+    st.write(f"IM: {im_avg:.2f} ; Inconsistency index: {inconsistency} ; Longstring: {long_run} ; Attention pass: {att_pass}")
+
+    # Prepare info for logging
+    player_info = {
+        "name": st.session_state.get("player_name", "N/A"),
+        "id": st.session_state.get("player_id", "N/A"),
+        "team": st.session_state.get("team_name", "N/A"),
+        "position": st.session_state.get("player_position", "N/A"),
+        "dob": st.session_state.get("dob", "").strftime("%d/%m/%Y"),
+        "age": st.session_state.get("player_age", "N/A"),
+    }
+
+    validity_scores = {
+        "IM": im_avg,
+        "Inconsistency": inconsistency,
+        "Longstring": long_run,
+        "AttentionPass": att_pass
+    }
+
+    # === Log results to Google Sheets ===
+    log_to_gsheet(player_info, adjusted, validity_scores)
 
     # === Generate and Download PDF Report ===
     buffer = BytesIO()
@@ -307,7 +390,7 @@ if st.session_state.page == 8:
     y -= 14
     c.setFont("Helvetica", 10)
     c.drawString(40, y,
-                 f"IM sum: {im_sum} ; Inconsistency index: {inconsistency} ; Longstring: {long_run} ; Attention pass: {att_pass}")
+                 f"IM: {im_avg:.2f} ; Inconsistency index: {inconsistency} ; Longstring: {long_run} ; Attention pass: {att_pass}")
     y -= 24
     c.setFont("Helvetica-Bold", 11)
     c.drawString(40, y, "Actionable Recommendations")
@@ -325,7 +408,7 @@ if st.session_state.page == 8:
     c.save()
     buffer.seek(0)
 
-    
+
     # === Do another test button (appears only on final page, before download button) ===
     restart = st.button("🏠 Do another test")
 
