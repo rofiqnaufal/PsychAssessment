@@ -6,6 +6,11 @@ from reportlab.pdfgen import canvas
 from scoring import compute_domain_means, compute_im_score, inconsistency_index, max_longstring, adjust_for_im
 import gspread
 from google.oauth2.service_account import Credentials
+try:
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaIoBaseUpload
+except ImportError:
+    st.error("googleapiclient not installed. Please add 'google-api-python-client==2.108.0' to requirements.txt")
 
 # ======= PAGE CONFIG & STYLING =======
 st.set_page_config(page_title="FOOTPSY Assessment", layout="wide")
@@ -29,10 +34,9 @@ except:
     pass
 
 # ======= GOOGLE SHEETS HELPER =======
-def log_to_gsheet(player_info, domain_scores, validity_scores):
-    """Append one assessment result to Google Sheets with proper column order"""
+def log_to_gsheet(player_info, domain_scores, validity_scores, responses, pdf_link=""):
+    """Append one assessment result to Google Sheets with PDF link"""
     try:
-        # Define Google API scopes
         SCOPES = [
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
@@ -43,21 +47,9 @@ def log_to_gsheet(player_info, domain_scores, validity_scores):
         )
         client = gspread.authorize(creds)
 
-        # Open your Google Sheet
         sheet = client.open("Footpsy - Football Psychological Assessment Database").sheet1
 
-        # --- Column order as per your Google Sheet ---
-        ordered_domains = [
-            "Drive & Commitment",
-            "Competitive Edge",
-            "Resilience Under Pressure",
-            "Learning & Adaptability",
-            "Focus & Game Intelligence",
-            "Team Orientation & Coachability",
-            "Emotional Regulation"
-        ]
-
-        # --- Build the row in the same order as your sheet header ---
+        # --- Build the row ---
         row = [
             datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             player_info.get("name", "N/A"),
@@ -68,7 +60,13 @@ def log_to_gsheet(player_info, domain_scores, validity_scores):
             player_info.get("age", "N/A"),
         ]
 
-        # Add domain scores in the correct order
+        # Add domain scores
+        ordered_domains = [
+            "Drive & Commitment", "Competitive Edge", "Resilience Under Pressure",
+            "Learning & Adaptability", "Focus & Game Intelligence",
+            "Team Orientation & Coachability", "Emotional Regulation"
+        ]
+
         for domain in ordered_domains:
             val = domain_scores.get(domain, "")
             row.append(round(val, 2) if isinstance(val, (int, float)) else "")
@@ -81,13 +79,74 @@ def log_to_gsheet(player_info, domain_scores, validity_scores):
             validity_scores.get("AttentionPass", "")
         ])
 
+        # Add all individual question responses
+        for i in range(1, 61):
+            row.append(responses.get(i, ""))
+
+        # Add PDF link
+        row.append(pdf_link if pdf_link else "Not saved")
+
         # Append the row
         sheet.append_row(row)
-        st.session_state["log_status"] = "success"
+        return True
 
     except Exception as e:
-        st.session_state["log_status"] = f"failed: {e}"
+        st.error(f"Failed to log data: {e}")
+        return False
 
+
+def save_pdf_to_shared_drive(pdf_data, player_name, player_id):
+    """Save PDF report to a Shared Drive"""
+    try:
+        SCOPES = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        creds = Credentials.from_service_account_info(
+            st.secrets["google_service_account"],
+            scopes=SCOPES
+        )
+
+        # Build Drive API client
+        drive_service = build('drive', 'v3', credentials=creds)
+
+        # === REPLACE THIS WITH YOUR ACTUAL SHARED DRIVE ID ===
+        SHARED_DRIVE_ID = "0AOT9SySfSgB9Uk9PVA"  # ← Replace with your actual Shared Drive ID
+
+        # Create file metadata
+        file_metadata = {
+            'name': f"FOOTPSY_Report_{player_name}_{player_id}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+            'parents': [SHARED_DRIVE_ID]
+        }
+
+        # Create media upload
+        media = MediaIoBaseUpload(
+            pdf_data,
+            mimetype='application/pdf',
+            resumable=True
+        )
+
+        # Upload file to shared drive
+        file = drive_service.files().create(
+            body=file_metadata,
+            media_body=media,
+            supportsAllDrives=True,  # Required for shared drives
+            fields='id, webViewLink, webContentLink'
+        ).execute()
+
+        # Make the file publicly viewable
+        drive_service.permissions().create(
+            fileId=file['id'],
+            body={'type': 'anyone', 'role': 'reader'},
+            supportsAllDrives=True  # Required for shared drives
+        ).execute()
+
+        st.success("✅ Report saved!")
+        return file['webViewLink']
+
+    except Exception as e:
+        st.error(f"Failed to save PDF: {e}")
+        return None
 
 # ======= SETUP =======
 BASE = os.path.dirname(__file__)
@@ -96,7 +155,7 @@ map_dict = {}
 for _, r in mapping.iterrows():
     map_dict.setdefault(r['Scale'], []).append(int(r['Item']))
 
-reverse_items = [2,6,7,10,14,16,20,21,22,26,31,36,38,42,45,50,54,59,13,43]
+reverse_items = [2,6,7,10,13,16,20,21,22,26,31,36,38,42,45,50,54,59]
 im_items = map_dict.get("Impression Management", [])
 inconsistency_pairs = [(1,42),(2,47),(15,22),(16,18)]
 
@@ -171,6 +230,10 @@ if 'qpage' not in st.session_state: st.session_state.qpage = 1
 # ======= PAGE 1: ATHLETE INFO =======
 if st.session_state.page == 1:
     st.title("🏆 FOOTPSY — Football Psychological Assessment")
+    # Add admin access button at the top
+    if st.sidebar.button("🔧 Admin Access"):
+        st.session_state.page = 9
+        st.rerun()
 
     logo_path = os.path.join(BASE, "assets", "footpsylogo.png")
     if os.path.exists(logo_path):
@@ -327,22 +390,23 @@ if st.session_state.page >= 2 and st.session_state.page <= 7:
 # ======= PAGE 8: RESULTS =======
 if st.session_state.page == 8:
     st.title("📊 Results & Report")
-    responses = {i: st.session_state.get(f"q{i}", 0) for i in range(1,61)}
+    responses = {i: st.session_state.get(f"q{i}", 0) for i in range(1, 61)}
     domain_means = compute_domain_means(responses, map_dict, reverse_items)
     im_avg = compute_im_score(responses, im_items, reverse_items) / len(im_items)
     inconsistency = inconsistency_index(responses, inconsistency_pairs)
     long_run = max_longstring(responses)
-    att_pass = (responses.get(8)==4) and (responses.get(57)==4)
+    att_pass = (responses.get(8) == 4) and (responses.get(57) == 4)
     adjusted = adjust_for_im(domain_means, im_avg, len(im_items))
 
     st.subheader("Results Summary")
-    perf_scales = [s for s in adjusted.keys() if s not in ['Impression Management','Attention Checks']]
+    perf_scales = [s for s in adjusted.keys() if s not in ['Impression Management', 'Attention Checks']]
     cols = st.columns(2)
-    for i,k in enumerate(perf_scales):
-        cols[i%2].metric(k, f"{adjusted[k]:.2f}")
+    for i, k in enumerate(perf_scales):
+        cols[i % 2].metric(k, f"{adjusted[k]:.2f}")
 
     st.markdown("**Validity & Quality**")
-    st.write(f"IM: {im_avg:.2f} ; Inconsistency index: {inconsistency} ; Longstring: {long_run} ; Attention pass: {att_pass}")
+    st.write(
+        f"IM: {im_avg:.2f} ; Inconsistency index: {inconsistency} ; Longstring: {long_run} ; Attention pass: {att_pass}")
 
     # Prepare info for logging
     player_info = {
@@ -361,10 +425,7 @@ if st.session_state.page == 8:
         "AttentionPass": att_pass
     }
 
-    # === Log results to Google Sheets ===
-    log_to_gsheet(player_info, adjusted, validity_scores)
-
-    # === Generate and Download PDF Report ===
+    # === Generate PDF Report ===
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
@@ -415,19 +476,39 @@ if st.session_state.page == 8:
     c.save()
     buffer.seek(0)
 
+    # Make a copy of the PDF data for saving
+    pdf_data = BytesIO(buffer.getvalue())
+    pdf_data.seek(0)
 
-    # === Do another test button (appears only on final page, before download button) ===
+    # === Log results to Google Sheets ===
+    if "logged" not in st.session_state:
+        # First, save PDF to shared drive
+        pdf_link = save_pdf_to_shared_drive(pdf_data, player_name, player_id)
+
+        # Then log all data including PDF link
+        success = log_to_gsheet(player_info, adjusted, validity_scores, responses, pdf_link)
+
+        if success:
+            st.success("✅ Assessment completed!")
+
+        st.session_state.logged = True
+
+    # Show PDF link if available
+    if hasattr(st.session_state, 'pdf_link'):
+        st.markdown(f"**🌐 Online Report Link:** [View Permanent Online Copy]({st.session_state.pdf_link})")
+        st.markdown("*This link will always be accessible*")
+
+    # === Do another test button ===
     restart = st.button("🏠 Do another test")
 
     if restart:
-        # Clear everything and immediately rerun BEFORE re-rendering download button
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.session_state.page = 1
         st.session_state.qpage = 1
         st.rerun()
 
-    # === Single visible download button ===
+    # === Download button ===
     st.download_button(
         label="📄 Download PDF Report",
         data=buffer,
@@ -435,4 +516,63 @@ if st.session_state.page == 8:
         mime="application/pdf"
     )
 
+# ======= PAGE 9: ADMIN PANEL (Add this after PAGE 8) =======
+if st.session_state.page == 9:
+    st.title("🔧 Admin Panel - View All Reports")
 
+    try:
+        SCOPES = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        creds = Credentials.from_service_account_info(
+            st.secrets["google_service_account"],
+            scopes=SCOPES
+        )
+        client = gspread.authorize(creds)
+
+        # Access the spreadsheet
+        sheet = client.open("Footpsy - Football Psychological Assessment Database").sheet1
+
+        # Get all records
+        records = sheet.get_all_records()
+
+        if records:
+            st.subheader(f"Total Assessments: {len(records)}")
+
+            # Create a DataFrame for display
+            df = pd.DataFrame(records)
+
+            # Search and filter
+            col1, col2 = st.columns(2)
+            with col1:
+                search_name = st.text_input("Search by Player Name")
+            with col2:
+                search_team = st.text_input("Search by Team")
+
+            # Filter data
+            if search_name:
+                df = df[df['Player Name'].str.contains(search_name, case=False, na=False)]
+            if search_team:
+                df = df[df['Team Name'].str.contains(search_team, case=False, na=False)]
+
+            # Display results
+            st.dataframe(df)
+
+            # Option to download all data
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download All Data as CSV",
+                data=csv,
+                file_name="footpsy_all_assessments.csv",
+                mime="text/csv"
+            )
+        else:
+            st.info("No assessment data found.")
+
+    except Exception as e:
+        st.error(f"Error accessing data: {e}")
+
+    if st.button("← Back to Main"):
+        st.session_state.page = 1
+        st.rerun()
