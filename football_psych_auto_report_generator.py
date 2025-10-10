@@ -13,7 +13,14 @@ except ImportError:
     st.error("googleapiclient not installed. Please add 'google-api-python-client==2.108.0' to requirements.txt")
 
 # ======= PAGE CONFIG & STYLING =======
-st.set_page_config(page_title="FOOTPSY Assessment", layout="wide")
+BASE = os.path.dirname(__file__)
+
+st.set_page_config(
+    page_title="FOOTPSY Assessment",
+    page_icon=os.path.join(BASE, "assets", "footpsylogo.png"),  # ✅ custom favicon
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
 primary_green = "#4CAF50"
 # Force dark theme in Streamlit config
@@ -151,7 +158,6 @@ def save_pdf_to_shared_drive(pdf_data, player_name, player_id):
         return None
 
 # ======= SETUP =======
-BASE = os.path.dirname(__file__)
 mapping = pd.read_csv(os.path.join(BASE, "assets", "scales_mapping.csv"))
 map_dict = {}
 for _, r in mapping.iterrows():
