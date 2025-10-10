@@ -39,7 +39,7 @@ def inconsistency_index(responses, pairs):
     return round(float(np.nanmean(diffs)),3) if diffs else np.nan
 
 def max_longstring(responses):
-    seq = [responses.get(i) for i in range(1,61) if responses.get(i) is not None]
+    seq = [responses.get(i) for i in range(1,67) if responses.get(i) is not None]
     if not seq:
         return 0
     run = 1; max_run = 1
@@ -51,22 +51,3 @@ def max_longstring(responses):
             run = 1
     return max_run
 
-def adjust_for_im(domain_scores, im_sum, im_len):
-    im_mean = im_sum / im_len if im_len else None
-    adj = 0.0
-    if im_mean is not None:
-        if im_mean >= 3.9:
-            adj = -0.3
-        elif im_mean <= 2.5:
-            adj = 0.3
-    adjusted = {}
-    for k,v in domain_scores.items():
-        if k.lower().startswith('impression') or k.lower().startswith('attention'):
-            adjusted[k] = v
-            continue
-        if v is None or (isinstance(v,float) and np.isnan(v)):
-            adjusted[k] = v
-            continue
-        a = round(min(5.0, max(1.0, v + adj)),2)
-        adjusted[k] = a
-    return adjusted
