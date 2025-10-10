@@ -3,7 +3,7 @@ import pandas as pd, os, datetime, random, string
 from io import BytesIO
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
-from scoring import compute_domain_means, compute_im_score, inconsistency_index, max_longstring, adjust_for_im
+from scoring import compute_domain_means, compute_im_score, inconsistency_index, max_longstring
 import gspread
 from google.oauth2.service_account import Credentials
 try:
@@ -62,9 +62,11 @@ def log_to_gsheet(player_info, domain_scores, validity_scores, responses, pdf_li
 
         # Add domain scores
         ordered_domains = [
-            "Drive & Commitment", "Competitive Edge", "Resilience Under Pressure",
-            "Learning & Adaptability", "Focus & Game Intelligence",
-            "Team Orientation & Coachability", "Emotional Regulation"
+            "Resilience", "Self-Discipline", "Competitiveness",
+            "Achievement Motivation", "Focus & Concentration",
+            "Confidence", "Emotional Control", "Coachability & Adaptability",
+            "Risk-Taking", "Team Orientation", "Leadership & Influence",
+            "Aggressiveness & Bravery"
         ]
 
         for domain in ordered_domains:
@@ -80,7 +82,7 @@ def log_to_gsheet(player_info, domain_scores, validity_scores, responses, pdf_li
         ])
 
         # Add all individual question responses
-        for i in range(1, 61):
+        for i in range(1, 67):
             row.append(responses.get(i, ""))
 
         # Add PDF link
@@ -155,72 +157,78 @@ map_dict = {}
 for _, r in mapping.iterrows():
     map_dict.setdefault(r['Scale'], []).append(int(r['Item']))
 
-reverse_items = [2,6,7,10,13,16,20,21,22,26,31,36,38,42,45,50,54,59]
+reverse_items = [7, 14, 23, 25, 26, 30, 31, 34, 36, 37, 38, 39, 41, 44, 45, 47, 48, 49, 50, 55, 57, 61, 62, 63, 64]
 im_items = map_dict.get("Impression Management", [])
-inconsistency_pairs = [(1,42),(2,47),(15,22),(16,18)]
+inconsistency_pairs = [(17,64),(6,25),(22,39),(4,49)]
 
 # --- Sample Questions ---
 questions = {
-1:"I can stay calm when my team concedes a goal late in the game.",
-2:"I sometimes lose focus when training becomes repetitive.",
-3:"I am always fair and respectful to everyone on and off the pitch.",
-4:"I stay aware of my positioning even when I’m tired.",
-5:"I recover quickly from mistakes during a match.",
-6:"I never lose my temper, no matter what happens.",
-7:"I get frustrated when others don’t play the way I want.",
-8:"I am answering this questionnaire honestly and carefully.",
-9:"I enjoy competing against players who are better than me.",
-10:"I find it hard to regain confidence after a poor performance.",
-11:"I’m willing to make personal sacrifices to improve as a player.",
-12:"I encourage teammates even when I’m not playing well.",
-13:"I’ve never made a mistake that cost my team a goal.",
-14:"I look for new ways to stay ahead technically and tactically.",
-15:"I can control my emotions when opponents try to provoke me.",
-16:"I resist tactical changes because they confuse me.",
-17:"I mentally prepare myself to outwork and outthink my opponent.",
-18:"I’m open to trying new playing styles or positions if the team needs it.",
-19:"I stay motivated even when I’m not in the starting lineup.",
-20:"I sometimes make impulsive decisions under pressure.",
-21:"I never disagree with my coach.",
-22:"I sometimes lose my temper when things go wrong.",
-23:"I hate being second best.",
-24:"I always give my full effort, even in routine training sessions.",
-25:"I respect my teammates regardless of their ability level.",
-26:"I lose focus easily when things aren’t going my way.",
-27:"I can quickly shift my mindset after making a mistake.",
-28:"I’m quick to adapt when tactics change during a game.",
-29:"I’ve never missed a training session without a valid reason.",
-30:"I can read the flow of the game and anticipate what’s next.",
-31:"I stick to what’s comfortable rather than learning new skills.",
-32:"I know how to calm myself before important matches.",
-33:"I handle setbacks and criticism without losing focus.",
-34:"I enjoy being where the action is.",
-35:"I am organized and keep myself disciplined.",
-36:"I have never complained or felt frustrated during tough training.",
-37:"I adapt my playstyle to suit what the team needs.",
-38:"I sometimes lose motivation during long training periods.",
-39:"I act on my instincts when I have to make quick decisions.",
-40:"I feel proud when I outperform stronger opponents.",
-41:"I help lift the team’s mood after setbacks.",
-42:"I let small setbacks affect my confidence for too long.",
-43:"I push myself to maintain high fitness levels all year round.",
-44:"I take care not to injure opponents.",
-45:"I find it hard to accept tactical instructions I don’t agree with.",
-46:"I’m confident in my ability to perform under pressure.",
-47:"I always give 100% effort in every single session.",
-48:"I can quickly switch my focus between attack and defense.",
-49:"I know how to calm my nerves before kickoff.",
-50:"I act selfishly to get ahead in my career.",
-51:"I handle pressure situations better than most players.",
-52:"I can quickly adapt when the coach changes tactics mid-game.",
-53:"I follow a healthy lifestyle.",
-54:"I get angry when referees make unfair decisions.",
-55:"I ask my coaches for feedback on how I can improve.",
-56:"I’m able to laugh at myself after a bad performance.",
-57:'Please select "Agree" for this item.',
-58:"I like to give orders and take charge when needed.",
-59:"I feel anxious before important matches.",
-60:"I show total commitment to developing as a footballer."
+    1: "I can maintain my focus on the game for the full 90 minutes, even when we are winning comfortably.",
+    2: "I will often attempt a difficult through-pass or progressive pass, even if it might be intercepted. ",
+    3: "I am confident that I can perform well even in a high-pressure match, like a cup final or a derby.",
+    4: "I follow a strict routine for sleep, nutrition, and recovery, even on my days off.",
+    5: "I feel just as much satisfaction from providing a crucial assist as I do from scoring a goal myself.",
+    6: "I can stay calm and make rational decisions even when opponents are trying to provoke me.",
+    7: "If I get beaten in a 1v1, my confidence drops and I become hesitant and worried next time I encounter a 1v1 again.",
+    8: "I am comfortable being the one who gives instructions and organizes the team during a game.",
+    9: "I get extra motivation from playing against opponents who are considered better than me.",
+    10: "I am always willing to admit when I make a mistake.",
+    11: "I enjoy trying creative flicks and tricks during a game if I see an opportunity.",
+    12: "I am always willing to sacrifice my own positioning to cover for a teammate who has pushed forward.",
+    13: "I have a specific technique that I use to calm myself down quickly when I feel frustration building.",
+    14: "I sometimes skip the recommended cool-down or stretching after training if I'm feeling tired.",
+    15: "I rarely let the referee's decisions affect my mood or my focus on the game.",
+    16: "I set specific personal goals for myself for each season and review my progress regularly.",
+    17: "I can shake off a bad pass or a missed tackle and focus on the next play immediately.",
+    18: "This is an attention check. Please select 'Strongly Disagree'.",
+    19: "I actively seek out feedback from my coaches on how I can improve, even after a good game.",
+    20: "I will happily do the 'unseen' defensive work that might not get noticed by fans but helps the team win.",
+    21: "I have never felt jealous of a teammate's success or recognition.",
+    22: "I enjoy the challenge of learning a new playing position or tactical role.",
+    23: "I believe it's always better to keep possession with a simple pass than to risk losing the ball with an ambitious one.",
+    24: "I am always fully focused and give 100% effort in every training session, not just the ones before a big game.",
+    25: "I often react impulsively in the heat of the moment and later regret my actions.",
+    26: "I am just as satisfied with a good personal performance in a loss as I am with a win.",
+    27: "If the game is on the line, I want to be the one taking the penalty/free-kick or having the decisive moment.",
+    28: "I make a conscious effort to encourage teammates, especially when they are struggling or have made a mistake.",
+    29: "When the opponent scores, it makes me more determined to make an immediate impact to turn things around.",
+    30: "I sometimes lose track of my tactical position when I get tired in the last 15 minutes of a game.",
+    31: "I avoid high-risk actions unless the odds of success are strongly in my favor.",
+    32: "I am not intimidated by playing against opponents who are known for being physically stronger or more aggressive.",
+    33: "I constantly compare my performance and statistics to my teammates and rivals.",
+    34: "If I make an error in the first half, it's hard for me to perform well for the rest of the game.",
+    35: "The feeling of mastering a new skill is one of the most rewarding parts of football for me.",
+    36: "I get frustrated when a coach asks me to change a technique that I'm already comfortable with.",
+    37: "I sometimes doubt my abilities when my team is about to face a much stronger opponent.",
+    38: "After an opponent scores a goal, I find it difficult to regain my composure and focus.",
+    39: "I prefer to stick to a familiar game plan rather than adapt to the specific strengths of our opponent.",
+    40: "I always give 100% in every drill, regardless of how tired or unmotivated I feel.",
+    41: "If a teammate makes a mistake that costs us a goal, I struggle to hide my frustration with them.",
+    42: "I will voluntarily do extra training sessions to work on my weaknesses.",
+    43: "I have a specific routine or technique to quickly refocus my mind if it starts to wander during a match.",
+    44: "I am happy with my current ability level and don't feel a strong need to improve.",
+    45: "I believe that technical skill and intelligence are far more important in football than physical aggression.",
+    46: "Winning my individual battles on the pitch is just as important to me as the final score.",
+    47: "I tend to avoid 50/50 challenges where I might get hurt.",
+    48: "Once I've achieved a goal, I tend to relax my efforts rather than immediately set a new one.",
+    49: "During the off-season, I find it difficult to maintain the same level of fitness and discipline.",
+    50: "I am not particularly bothered by losing in training games or small-sided matches.",
+    51: "I’ve never felt frustrated with a teammate, even after a costly mistake.",
+    52: "I am always willing to put my body on the line, for example, by throwing myself to win a duel or block a shot.",
+    53: "I enjoy the physical side of football and look for opportunities to win my individual duels.",
+    54: "If the coach changes the game plan at halftime, I can quickly understand and execute the new instructions.",
+    55: "I sometimes get frustrated when a teammate doesn’t pass the ball to me when I’m in a better position.",
+    56: "I believe I have what it takes to succeed at the highest level of football.",
+    57: "If I have a run of poor form, I start to question whether I'm good enough.",
+    58: "I am driven by a need to see how good I can ultimately become.",
+    59: "When I'm on the pitch, I can easily tune out distractions like the crowd or opponents' comments.",
+    60: "To show you are paying attention, please select 'Agree' for this statement.",
+    61: "I feel uncomfortable having to give critical feedback to a teammate, even if it would help the team.",
+    62: "My primary personal goal is to be the star player of the team, even if the team doesn't win.",
+    63: "I prefer to focus solely on my own performance and let others worry about organizing the team.",
+    64: "If I make a mistake, I find it very difficult to stop thinking about it and focus on the next play.",
+    65: "I will speak up in the dressing room to address issues or to motivate the group before an important match.",
+    66: "When under pressure, I prefer to attempt a high-risk/ambitious play rather than play it safe."
 }
 
 # ======= SESSION STATE =======
@@ -325,7 +333,7 @@ if st.session_state.page >= 2 and st.session_state.page <= 7:
         "**Instructions:** Read each statement and select how true it is for you (1–5)."
     )
 
-    q_per_page = 10
+    q_per_page = 11
     total_q = len(questions)
     total_qpages = (total_q + q_per_page - 1) // q_per_page
     qpage = st.session_state.qpage
@@ -404,23 +412,82 @@ if st.session_state.page >= 2 and st.session_state.page <= 7:
 # ======= PAGE 8: RESULTS =======
 if st.session_state.page == 8:
     st.title("📊 Results & Report")
-    responses = {i: st.session_state.get(f"q{i}", 0) for i in range(1, 61)}
+    responses = {i: st.session_state.get(f"q{i}", 0) for i in range(1, 67)}
     domain_means = compute_domain_means(responses, map_dict, reverse_items)
     im_avg = compute_im_score(responses, im_items, reverse_items) / len(im_items)
     inconsistency = inconsistency_index(responses, inconsistency_pairs)
     long_run = max_longstring(responses)
-    att_pass = (responses.get(8) == 4) and (responses.get(57) == 4)
-    adjusted = adjust_for_im(domain_means, im_avg, len(im_items))
+    att_pass = (responses.get(18) == 1) and (responses.get(60) == 4)
+    adjusted = domain_means
 
-    st.subheader("Results Summary")
-    perf_scales = [s for s in adjusted.keys() if s not in ['Impression Management', 'Attention Checks']]
+    # Define core scales (12 domains)
+    core_scales = [
+        "Resilience", "Self-Discipline", "Competitiveness",
+        "Achievement Motivation", "Focus & Concentration",
+        "Confidence", "Emotional Control", "Coachability & Adaptability",
+        "Risk-Taking", "Team Orientation", "Leadership & Influence",
+        "Aggressiveness & Bravery"
+    ]
+
+    st.subheader("Psychological Domain Scores")
+
+
+    # Function to determine color based on score
+    def get_score_color(score):
+        if score >= 4.2:
+            return "#4CAF50"  # Green for High
+        elif score >= 3.0:
+            return "#FFA500"  # Orange/Yellow for Moderate
+        else:
+            return "#FF4B4B"  # Red for Low
+
+
+    # Function to create progress bar HTML
+    def create_progress_bar(score, width=200, height=20):
+        percentage = (score / 5.0) * 100
+        color = get_score_color(score)
+        return f"""
+        <div style="width: {width}px; height: {height}px; background-color: #f0f0f0; border-radius: 10px; overflow: hidden; position: relative;">
+            <div style="width: {percentage}%; height: 100%; background-color: {color}; border-radius: 10px; transition: width 0.3s ease;"></div>
+            <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; color: #333;">
+                {score:.2f}/5.00
+            </div>
+        </div>
+        """
+
+
+    # Display core scales with progress bars in 2 columns
     cols = st.columns(2)
-    for i, k in enumerate(perf_scales):
-        cols[i % 2].metric(k, f"{adjusted[k]:.2f}")
+    for i, scale in enumerate(core_scales):
+        score = domain_means.get(scale, 0)
+        with cols[i % 2]:
+            # Create a container for each scale
+            with st.container():
+                st.markdown(f"**{scale}**")
 
-    st.markdown("**Validity & Quality**")
+                # Create two columns: one for progress bar, one for interpretation
+                bar_col, text_col = st.columns([2, 1])
+
+                with bar_col:
+                    st.markdown(create_progress_bar(score), unsafe_allow_html=True)
+
+                with text_col:
+                    if score >= 4.2:
+                        st.markdown("<span style='color: #4CAF50; font-weight: bold;'>High</span>",
+                                    unsafe_allow_html=True)
+                    elif score >= 3.0:
+                        st.markdown("<span style='color: #FFA500; font-weight: bold;'>Moderate</span>",
+                                    unsafe_allow_html=True)
+                    else:
+                        st.markdown("<span style='color: #FF4B4B; font-weight: bold;'>Low</span>",
+                                    unsafe_allow_html=True)
+
+                st.markdown("---")
+
+    # Validity scores (no progress bars)
+    st.markdown("**Validity & Quality Checks**")
     st.write(
-        f"IM: {im_avg:.2f} ; Inconsistency index: {inconsistency} ; Longstring: {long_run} ; Attention pass: {att_pass}")
+        f"Impression Management: {im_avg:.2f} | Inconsistency: {inconsistency} | Longstring: {long_run} | Attention: {'PASS' if att_pass else 'FAIL'}")
 
     # Prepare info for logging
     player_info = {
@@ -443,14 +510,29 @@ if st.session_state.page == 8:
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
-    logo_path = os.path.join(BASE, "assets", "footpsylogo.png")
-    if os.path.exists(logo_path):
-        c.drawImage(logo_path, 40, height - 110, width=120, preserveAspectRatio=True)
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(180, height - 60, f"FOOTPSY — Individual Report")
-    c.setFont("Helvetica", 10)
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    c.drawString(40, height - 120, f"Date: {now}")
+
+    # === PDF STYLING CONSTANTS ===
+    LEFT_MARGIN = 40
+    RIGHT_MARGIN = width - 40
+    LINE_HEIGHT = 14
+    SECTION_SPACING = 20
+
+    # Progress bar dimensions for PDF
+    PROGRESS_BAR_WIDTH = 200
+    PROGRESS_BAR_HEIGHT = 12
+
+
+    def draw_header():
+        """Draw the header with logo and title"""
+        logo_path = os.path.join(BASE, "assets", "footpsylogo.png")
+        if os.path.exists(logo_path):
+            c.drawImage(logo_path, LEFT_MARGIN, height - 110, width=120, preserveAspectRatio=True)
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(180, height - 60, "FOOTPSY — Individual Psychological Report")
+        c.setFont("Helvetica", 10)
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        c.drawString(LEFT_MARGIN, height - 85, f"Report Generated: {now}")
+
 
     player_name = st.session_state.get("player_name", "N/A")
     player_id = st.session_state.get("player_id", "N/A")
@@ -459,34 +541,347 @@ if st.session_state.page == 8:
     dob = st.session_state.get("dob", None)
     player_age = (datetime.date.today().year - dob.year) if dob else "N/A"
 
-    c.drawString(40, height - 135, f"Player: {player_name}  |  ID: {player_id}")
-    c.drawString(40, height - 150, f"Team: {team_name}  |  Position: {player_position}")
-    c.drawString(40, height - 165, f"Date of Birth: {dob.strftime('%d/%m/%Y') if dob else 'N/A'}  |  Age: {player_age}")
-    y = height - 195
-    for k in perf_scales:
-        c.drawString(40, y, f"{k}: {adjusted[k]:.2f}")
-        y -= 14
-    y -= 8
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(40, y, "Validity & Quality Checks")
-    y -= 14
-    c.setFont("Helvetica", 10)
-    c.drawString(40, y,
-                 f"IM: {im_avg:.2f} ; Inconsistency index: {inconsistency} ; Longstring: {long_run} ; Attention pass: {att_pass}")
-    y -= 24
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(40, y, "Actionable Recommendations")
-    y -= 14
-    recos = [
-        "Introduce breathing and visualization routines to improve focus.",
-        "Use pressure-simulation drills to improve resilience.",
-        "Set progressive measurable goals to leverage drive and commitment.",
-        "Include short reset routines after mistakes."
-    ]
-    c.setFont("Helvetica", 10)
-    for r in recos:
-        c.drawString(40, y, f"• {r}")
-        y -= 12
+
+    def draw_player_info(y_position):
+        """Draw player information section"""
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(LEFT_MARGIN, y_position, "Player Information")
+        y_position -= LINE_HEIGHT
+
+        c.setFont("Helvetica", 10)
+        info_lines = [
+            f"Name: {player_name}",
+            f"ID: {player_id}",
+            f"Team: {team_name}",
+            f"Position: {player_position}",
+            f"Date of Birth: {dob.strftime('%d/%m/%Y') if dob else 'N/A'}",
+            f"Age: {player_age}"
+        ]
+
+        for line in info_lines:
+            c.drawString(LEFT_MARGIN, y_position, line)
+            y_position -= LINE_HEIGHT
+
+        return y_position - 10
+
+
+    def draw_progress_bar(c, x, y, score, width=PROGRESS_BAR_WIDTH, height=PROGRESS_BAR_HEIGHT):
+        """Draw a progress bar for PDF"""
+        # Background
+        c.setFillColorRGB(0.94, 0.94, 0.94)  # Light gray
+        c.rect(x, y, width, height, fill=1, stroke=0)
+
+        # Determine color
+        if score >= 4.2:
+            color = (0.3, 0.69, 0.3)  # Green
+        elif score >= 3.0:
+            color = (1.0, 0.65, 0.0)  # Orange
+        else:
+            color = (1.0, 0.29, 0.29)  # Red
+
+        # Progress fill
+        progress_width = (score / 5.0) * width
+        c.setFillColorRGB(*color)
+        c.rect(x, y, progress_width, height, fill=1, stroke=0)
+
+        # Border
+        c.setStrokeColorRGB(0.7, 0.7, 0.7)
+        c.rect(x, y, width, height, fill=0, stroke=1)
+
+        # Score text
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Helvetica-Bold", 8)
+        text = f"{score:.2f}/5.00"
+        text_width = c.stringWidth(text, "Helvetica-Bold", 8)
+        c.drawString(x + (width - text_width) / 2, y + 2, text)
+
+
+    def draw_domain_scores(y_position):
+        """Draw domain scores section with progress bars"""
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(LEFT_MARGIN, y_position, "Psychological Domain Scores")
+        y_position -= LINE_HEIGHT + 5
+
+        c.setFont("Helvetica", 10)
+
+        # Draw in two columns
+        col_width = (RIGHT_MARGIN - LEFT_MARGIN) / 2
+        column_gap = 20
+
+        for i, scale in enumerate(core_scales):
+            score = domain_means.get(scale, 0)
+
+            # Determine column position
+            if i % 2 == 0:
+                col_x = LEFT_MARGIN
+                item_y = y_position - (i // 2) * 35
+            else:
+                col_x = LEFT_MARGIN + col_width + column_gap
+                item_y = y_position - ((i - 1) // 2) * 35
+
+            # Scale name
+            c.setFont("Helvetica-Bold", 9)
+            c.drawString(col_x, item_y, scale)
+
+            # Progress bar
+            draw_progress_bar(c, col_x, item_y - 15, score)
+
+            # Interpretation text
+            c.setFont("Helvetica", 8)
+            if score >= 4.2:
+                interpretation = "High"
+                c.setFillColorRGB(0.3, 0.69, 0.3)  # Green
+            elif score >= 3.0:
+                interpretation = "Moderate"
+                c.setFillColorRGB(1.0, 0.65, 0.0)  # Orange
+            else:
+                interpretation = "Development Area"
+                c.setFillColorRGB(1.0, 0.29, 0.29)  # Red
+
+            c.drawString(col_x + PROGRESS_BAR_WIDTH + 5, item_y - 10, interpretation)
+            c.setFillColorRGB(0, 0, 0)  # Reset to black
+
+        # Calculate new y position (6 rows of content)
+        return y_position - (len(core_scales) // 2 * 35) - 20
+
+
+    def draw_validity_scores(y_position):
+        """Draw validity and quality checks"""
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(LEFT_MARGIN, y_position, "Validity & Quality Checks")
+        y_position -= LINE_HEIGHT
+
+        c.setFont("Helvetica", 10)
+        validity_lines = [
+            f"Impression Management: {im_avg:.2f}",
+            f"Inconsistency Index: {inconsistency}",
+            f"Longest Straight Run: {long_run}",
+            f"Attention Check: {'PASS' if att_pass else 'FAIL'}"
+        ]
+
+        for line in validity_lines:
+            c.drawString(LEFT_MARGIN, y_position, line)
+            y_position -= LINE_HEIGHT
+
+        return y_position - 10
+
+
+    def draw_question_responses(y_position):
+        """Draw all question responses with abbreviated question text in 2 columns"""
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(LEFT_MARGIN, y_position, "Complete Question Responses")
+        y_position -= LINE_HEIGHT
+
+        # Define response labels for display
+        response_labels = {
+            1: "SD",  # Strongly Disagree
+            2: "D",  # Disagree
+            3: "N",  # Neutral
+            4: "A",  # Agree
+            5: "SA"  # Strongly Agree
+        }
+
+        # Setup two columns
+        col_width = (RIGHT_MARGIN - LEFT_MARGIN) / 2
+        column_gap = 20
+        current_col = 0
+        start_x = LEFT_MARGIN
+        current_y = y_position
+
+        # Column headers
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(start_x, current_y, "Question & Response")
+        c.drawString(start_x + col_width + column_gap, current_y, "Question & Response")
+        current_y -= LINE_HEIGHT
+
+        c.setFont("Helvetica", 8)
+
+        # Create abbreviated question texts
+        abbreviated_questions = {
+            1: "Maintain focus for full 90 minutes",
+            2: "Attempt difficult progressive/through-passes",
+            3: "Confident in high-pressure matches",
+            4: "Strict sleep/nutrition/recovery routine",
+            5: "Satisfaction from assists equals goals",
+            6: "Stay calm when provoked",
+            7: "Confidence drops after beaten in 1v1",
+            8: "Comfortable giving instructions",
+            9: "Motivated vs better opponents",
+            10: "Willing to admit mistakes",
+            11: "Enjoy creative flicks/tricks",
+            12: "Sacrifice positioning to cover teammates",
+            13: "Technique to calm frustration",
+            14: "Skip cool-down if tired",
+            15: "Referee decisions don't affect focus",
+            16: "Set and review seasonal goals",
+            17: "Shake off bad passes immediately",
+            18: "Attention check: select Strongly Disagree",
+            19: "Seek feedback after good games",
+            20: "Do unseen defensive work",
+            21: "Never jealous of teammates",
+            22: "Enjoy learning new positions",
+            23: "Prefer safe passes over risky ones",
+            24: "100% effort in all training",
+            25: "React impulsively and regret",
+            26: "Satisfied with good performance in loss",
+            27: "Want decisive moments",
+            28: "Encourage struggling teammates",
+            29: "Determined after opponent scores",
+            30: "Lose tactical position when tired",
+            31: "Avoid high-risk actions",
+            32: "Not intimidated by physical opponents",
+            33: "Compare stats with teammates",
+            34: "Errors affect rest of game",
+            35: "Reward from mastering new skills",
+            36: "Frustrated by technique changes",
+            37: "Doubt abilities vs stronger teams",
+            38: "Difficulty refocusing after conceding",
+            39: "Prefer familiar game plans",
+            40: "100% in all drills",
+            41: "Struggle to hide frustration with teammates",
+            42: "Extra training for weaknesses",
+            43: "Routine to refocus during matches",
+            44: "Happy with current ability",
+            45: "Skill over physical aggression",
+            46: "Individual battles important",
+            47: "Avoid 50/50 challenges",
+            48: "Relax after achieving goals",
+            49: "Off-season fitness difficult",
+            50: "Not bothered by training losses",
+            51: "Never frustrated with teammates",
+            52: "Willing to put body on line",
+            53: "Enjoy physical duels",
+            54: "Quickly adapt to halftime changes",
+            55: "Frustrated when not passed to",
+            56: "Believe in highest level success",
+            57: "Question ability after poor form",
+            58: "Driven to maximize potential",
+            59: "Tune out crowd/distractions",
+            60: "Attention check: select Agree",
+            61: "Uncomfortable giving critical feedback",
+            62: "Want to be star player",
+            63: "Focus on own performance only",
+            64: "Difficulty moving past mistakes",
+            65: "Speak up in dressing room",
+            66: "Prefer high-risk plays under pressure"
+        }
+
+        # Draw all questions in 2 columns
+        for q_num in range(1, 67):
+            response_num = responses.get(q_num, 0)
+            response_text = response_labels.get(response_num, "NR")
+            question_abbr = abbreviated_questions.get(q_num, f"Q{q_num}")
+
+            # Calculate position
+            if current_col == 0:
+                col_x = start_x
+            else:
+                col_x = start_x + col_width + column_gap
+
+            # Draw the line
+            line_text = f"Q{q_num:02d}: {question_abbr} [{response_text}]"
+            c.drawString(col_x, current_y, line_text)
+
+            # Move to next row/column
+            current_col += 1
+            if current_col >= 2:
+                current_col = 0
+                current_y -= LINE_HEIGHT
+
+                # Check if we need a new page
+                if current_y < 100:
+                    c.showPage()
+                    current_y = height - 50
+                    c.setFont("Helvetica-Bold", 9)
+                    c.drawString(start_x, current_y, "Question & Response")
+                    c.drawString(start_x + col_width + column_gap, current_y, "Question & Response")
+                    current_y -= LINE_HEIGHT
+                    c.setFont("Helvetica", 8)
+
+        # Add response key
+        current_y -= 10
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(LEFT_MARGIN, current_y,
+                     "Response Key: SD=Strongly Disagree, D=Disagree, N=Neutral, A=Agree, SA=Strongly Agree")
+        current_y -= LINE_HEIGHT
+
+        return current_y
+
+
+    def draw_recommendations(y_position):
+        """Draw actionable recommendations"""
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(LEFT_MARGIN, y_position, "Actionable Recommendations")
+        y_position -= LINE_HEIGHT
+
+        c.setFont("Helvetica", 10)
+
+        # Generate personalized recommendations based on scores
+        personalized_recos = []
+
+        # Generate recommendations for each core scale
+        for scale in core_scales:
+            score = domain_means.get(scale, 0)
+            if score < 3.0:
+                personalized_recos.append(f"• Develop strategies to improve {scale.lower()}")
+            elif score > 4.0:
+                personalized_recos.append(f"• Leverage strong {scale.lower()} in team leadership")
+
+        if not personalized_recos:
+            personalized_recos = [
+                "• Continue current development path with focus on maintaining strengths",
+                "• Set specific performance targets for each psychological domain",
+                "• Regular self-reflection on mental performance after each game",
+                "• Seek regular feedback from coaches on psychological development"
+            ]
+
+        # Draw recommendations
+        for reco in personalized_recos:
+            if y_position < 100:  # Start new page if needed
+                c.showPage()
+                y_position = height - 100
+                c.setFont("Helvetica", 10)
+            c.drawString(LEFT_MARGIN, y_position, reco)
+            y_position -= LINE_HEIGHT
+
+        return y_position
+
+
+    # === BUILD THE PDF ===
+    current_y = height - 50
+
+    # Header
+    draw_header()
+    current_y = height - 120
+
+    # Player Information
+    current_y = draw_player_info(current_y)
+
+    # Domain Scores with Progress Bars
+    current_y = draw_domain_scores(current_y)
+
+    # Validity Scores
+    current_y = draw_validity_scores(current_y)
+
+    # Question Responses (start new page if needed)
+    if current_y < 200:
+        c.showPage()
+        current_y = height - 50
+
+    current_y = draw_question_responses(current_y)
+
+    # Recommendations (start new page if needed)
+    if current_y < 150:
+        c.showPage()
+        current_y = height - 50
+
+    current_y = draw_recommendations(current_y)
+
+    # Footer
+    c.setFont("Helvetica-Oblique", 8)
+    c.drawString(LEFT_MARGIN, 30, "Confidential Psychological Assessment - For Professional Use Only")
+    c.drawString(LEFT_MARGIN, 20, "FOOTPSY Football Psychological Assessment System")
+
     c.save()
     buffer.seek(0)
 
